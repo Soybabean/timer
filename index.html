@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>倒计时程序</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: black;
+            color: white;
+            position: relative;
+        }
+        #timer {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            transition: opacity 0.3s ease;
+        }
+        #controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        #buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        #hide-numbers {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .green {
+            background-color: green;
+        }
+        .yellow {
+            background-color: yellow;
+            color: #333 !important;
+        }
+        .red {
+            background-color: red;
+        }
+        .blink {
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+        #custom-input {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            width: 90%;
+            max-width: 300px;
+            text-align: center;
+        }
+        #custom-input input {
+            padding: 10px;
+            font-size: 1rem;
+            width: calc(100% - 20px);
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #custom-input button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+        }
+        #custom-input button:hover {
+            background-color: #0056b3;
+        }
+        #custom-input button#cancel-custom {
+            background-color: #6c757d;
+        }
+        #custom-input button#cancel-custom:hover {
+            background-color: #5a6268;
+        }
+        #time-hint {
+            display: none;
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 0.8rem;
+            color: white;
+            opacity: 0.8;
+        }
+        .yellow #time-hint {
+            color: #333 !important;
+            opacity: 0.9 !important;
+        }
+        #language-toggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 600px) {
+            #timer {
+                font-size: 3rem;
+            }
+            button {
+                font-size: 0.9rem;
+                padding: 8px 16px;
+            }
+            #language-toggle {
+                font-size: 0.8rem;
+                padding: 4px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button id="language-toggle">CN/EN</button>
+    <div id="timer">00:00</div>
+    <div id="controls">
+        <button id="start7">7分钟</button>
+        <button id="start3">3分钟</button>
+        <button id="custom">自定义</button>
+    </div>
+    <div id="buttons">
+        <button id="pause">暂停</button>
+        <button id="resume">继续</button>
+        <button id="reset">重置</button>
+    </div>
+    <button id="hide-numbers">隐藏/显示数字</button>
+    <div id="time-hint"></div>
+
+    <!-- 自定义输入框 -->
+    <div id="custom-input">
+        <input type="number" id="custom-time" placeholder="请输入分钟数（支持小数）" min="0.1" step="0.1" />
+        <button id="confirm-custom">确认</button>
+        <button id="cancel-custom">取消</button>
+    </div>
+
+    <script>
+        let timer;
+        let timeLeft = 0;
+        let isPaused = false;
+        let isStopped = false;
+        let currentMode = null;
+        let isNumbersHidden = false;
+        let isEnglish = false;
+
+        // 按钮中英文文字
+        const buttonTexts = {
+            cn: {
+                start7: "7分钟",
+                start3: "3分钟",
+                custom: "自定义",
+                pause: "暂停",
+                resume: "继续",
+                reset: "重置",
+                hideNumbers: "隐藏/显示数字",
+                confirmCustom: "确认",
+                cancelCustom: "取消",
+                languageToggle: "CN/EN",
+                customPlaceholder: "请输入分钟数（支持小数）",
+                alertMessage: "请输入有效的分钟数（支持小数，如1.5）！"
+            },
+            en: {
+                start7: "7 Minutes",
+                start3: "3 Minutes",
+                custom: "Custom",
+                pause: "Pause",
+                resume: "Resume",
+                reset: "Reset",
+                hideNumbers: "Hide/Show Numbers",
+                confirmCustom: "Confirm",
+                cancelCustom: "Cancel",
+                languageToggle: "CN/EN",
+                customPlaceholder: "Enter minutes (supports decimals)",
+                alertMessage: "Please enter a valid number of minutes (e.g., 1.5)!"
+            }
+        };
+
+        // 切换语言
+        function toggleLanguage() {
+            isEnglish = !isEnglish;
+            const texts = isEnglish ? buttonTexts.en : buttonTexts.cn;
+
+            // 更新按钮文字
+            document.getElementById('start7').textContent = texts.start7;
+            document.getElementById('start3').textContent = texts.start3;
+            document.getElementById('custom').textContent = texts.custom;
+            document.getElementById('pause').textContent = texts.pause;
+            document.getElementById('resume').textContent = texts.resume;
+            document.getElementById('reset').textContent = texts.reset;
+            document.getElementById('hide-numbers').textContent = texts.hideNumbers;
+            document.getElementById('language-toggle').textContent = texts.languageToggle;
+
+            // 更新弹窗中的文字
+            document.getElementById('confirm-custom').textContent = texts.confirmCustom;
+            document.getElementById('cancel-custom').textContent = texts.cancelCustom;
+            document.getElementById('custom-time').placeholder = texts.customPlaceholder;
+        }
+
+        // 初始化语言为中文
+        const texts = buttonTexts.cn;
+        document.getElementById('start7').textContent = texts.start7;
+        document.getElementById('start3').textContent = texts.start3;
+        document.getElementById('custom').textContent = texts.custom;
+        document.getElementById('pause').textContent = texts.pause;
+        document.getElementById('resume').textContent = texts.resume;
+        document.getElementById('reset').textContent = texts.reset;
+        document.getElementById('hide-numbers').textContent = texts.hideNumbers;
+        document.getElementById('language-toggle').textContent = texts.languageToggle;
+        document.getElementById('confirm-custom').textContent = texts.confirmCustom;
+        document.getElementById('cancel-custom').textContent = texts.cancelCustom;
+        document.getElementById('custom-time').placeholder = texts.customPlaceholder;
+
+        // 切换语言按钮事件
+        document.getElementById('language-toggle').addEventListener('click', toggleLanguage);
+
+        // 其他功能代码保持不变
+        function updateTimer() {
+            if (isPaused || isStopped) return;
+
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            const timerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            document.getElementById('timer').textContent = timerText;
+
+            if (isNumbersHidden) {
+                document.getElementById('time-hint').textContent = `${timerText}`;
+            }
+
+            if (currentMode === '7min' || (currentMode === 'custom' && timeLeft > 180)) {
+                if (timeLeft === 120) {
+                    document.body.className = 'green';
+                } else if (timeLeft === 60) {
+                    document.body.className = 'yellow';
+                } else if (timeLeft === 0) {
+                    document.body.className = 'red';
+                    clearInterval(timer);
+                    startFinalCountdown();
+                }
+            } else if (currentMode === '3min' || (currentMode === 'custom' && timeLeft <= 180)) {
+                if (timeLeft === 60) {
+                    document.body.className = 'green';
+                } else if (timeLeft === 30) {
+                    document.body.className = 'yellow';
+                } else if (timeLeft === 0) {
+                    document.body.className = 'red';
+                    clearInterval(timer);
+                    startFinalCountdown();
+                }
+            }
+
+            if (timeLeft > 0) {
+                timeLeft--;
+            }
+        }
+
+        function startFinalCountdown() {
+            let finalTimeLeft = 30;
+            timer = setInterval(() => {
+                if (isPaused || isStopped) return;
+
+                const seconds = finalTimeLeft % 60;
+                const timerText = `00:${String(seconds).padStart(2, '0')}`;
+                document.getElementById('timer').textContent = timerText;
+
+                if (isNumbersHidden) {
+                    document.getElementById('time-hint').textContent = `${timerText}`;
+                }
+
+                if (finalTimeLeft === 0) {
+                    document.body.classList.add('blink');
+                    clearInterval(timer);
+                }
+
+                finalTimeLeft--;
+            }, 1000);
+        }
+
+        function startCountdown(duration, mode) {
+            clearInterval(timer);
+            timeLeft = duration;
+            currentMode = mode;
+            isPaused = false;
+            isStopped = false;
+            document.body.className = '';
+            document.body.classList.remove('blink');
+            document.getElementById('timer').textContent = `${String(Math.floor(timeLeft / 60)).padStart(2, '0')}:${String(timeLeft % 60).padStart(2, '0')}`;
+            timer = setInterval(updateTimer, 1000);
+        }
+
+        document.getElementById('custom').addEventListener('click', () => {
+            document.getElementById('custom-input').style.display = 'block';
+        });
+
+        document.getElementById('confirm-custom').addEventListener('click', () => {
+            const inputValue = document.getElementById('custom-time').value;
+            const customTime = parseFloat(inputValue);
+            if (customTime > 0) {
+                const duration = Math.round(customTime * 60);
+                const mode = customTime <= 3 ? '3min' : '7min';
+                startCountdown(duration, 'custom');
+                document.getElementById('custom-input').style.display = 'none';
+            } else {
+                alert(isEnglish ? buttonTexts.en.alertMessage : buttonTexts.cn.alertMessage);
+            }
+        });
+
+        document.getElementById('cancel-custom').addEventListener('click', () => {
+            document.getElementById('custom-input').style.display = 'none';
+        });
+
+        document.getElementById('hide-numbers').addEventListener('click', () => {
+            const timerElement = document.getElementById('timer');
+            const timeHintElement = document.getElementById('time-hint');
+            isNumbersHidden = !isNumbersHidden;
+            timerElement.style.opacity = isNumbersHidden ? '0' : '1';
+            timeHintElement.style.display = isNumbersHidden ? 'block' : 'none';
+        });
+
+        document.getElementById('start7').addEventListener('click', () => {
+            startCountdown(420, '7min');
+        });
+
+        document.getElementById('start3').addEventListener('click', () => {
+            startCountdown(180, '3min');
+        });
+
+        document.getElementById('pause').addEventListener('click', () => {
+            isPaused = true;
+        });
+
+        document.getElementById('resume').addEventListener('click', () => {
+            if (isPaused) {
+                isPaused = false;
+                clearInterval(timer);
+                timer = setInterval(updateTimer, 1000);
+            }
+        });
+
+        document.getElementById('reset').addEventListener('click', () => {
+            isStopped = true;
+            isPaused = true;
+            clearInterval(timer);
+            document.getElementById('timer').textContent = '00:00';
+            document.body.className = '';
+            document.body.classList.remove('blink');
+            timeLeft = 0;
+            currentMode = null;
+        });
+    </script>
+</body>
+</html>
